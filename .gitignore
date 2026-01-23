@@ -10,4 +10,4 @@ wheels/
 .venv
 
 # My created files
-api.env
+.env
