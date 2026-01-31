@@ -23,11 +23,22 @@ def main():
     # Store a list of user prompts
     messages = [types.Content(role="user", parts=[types.Part(text=args.user_prompt)])]
 
-    if args.verbose:
-        print(f"User prompt: {args.user_prompt}")
-    generate_content(client, messages, args.verbose)
+    # Loop to limit conversation length/token usage
+    for l in range(20):
+        if args.verbose:
+            print(f"User prompt: {args.user_prompt}")
+        convo_finished = generate_content(client, messages, args.verbose)
+
+        if convo_finished:
+            print("Conversation finished.")
+            return
+        
+    print("You have reached the maximum prompt limit, please run the program again with a new prompt")
+    sys.exit(1)
 
 def generate_content(client, messages, verbose: bool):
+    # How to tell if loop is finished
+    final_response = False
 
     # The actual generation of content
     response = client.models.generate_content(
@@ -43,6 +54,10 @@ def generate_content(client, messages, verbose: bool):
     if response.usage_metadata is None:
         raise RuntimeError("No usage metadata!")
 
+    for c in response.candidates:
+        if c.content is not None:
+            messages.append(c.content)
+
     prompt_tokens = response.usage_metadata.prompt_token_count
     response_tokens = response.usage_metadata.candidates_token_count
 
@@ -51,7 +66,7 @@ def generate_content(client, messages, verbose: bool):
         print(f"Prompt tokens: {prompt_tokens}")
         print(f"Response tokens: {response_tokens}")
 
-    if response.function_calls is not None:
+    if response.function_calls:
         function_results = []
         for f in response.function_calls:
         #    print(f"Calling function: {f.name}({f.args})")
@@ -69,9 +84,14 @@ def generate_content(client, messages, verbose: bool):
                 print(f"-> {function_call_result.parts[0].function_response.response}")
 
             function_results.append(function_call_result.parts[0])
+        
+        messages.append(types.Content(role="user", parts=function_results))
 
     else:
         print(response.text)
+        final_response = True
+    
+    return final_response
 
 if __name__ == "__main__":
     main()
